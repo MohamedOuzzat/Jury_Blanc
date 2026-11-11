@@ -2,8 +2,6 @@ import pandas as pd
 from src import eda
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.feature_selection import f_classif
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import OneHotEncoder,OrdinalEncoder
@@ -17,35 +15,39 @@ from sklearn.preprocessing import (
     OneHotEncoder,
     OrdinalEncoder
 )
-
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score, classification_report
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import GradientBoostingClassifier
-
-
-
-
-
+import joblib
 
 def preprocess():
-    X,y,num_cols,nominal_cols,ordinal_cols,df=eda.EDA()
+    df = pd.read_csv("/opt/airflow/data/student_mental_health.csv")
+  
+    metadata=eda.EDA()
+  
+
+    num_cols=metadata["num_cols"]
+    nominal_cols=metadata["nominal_cols"]
+    ordinal_cols=metadata["ordinal_cols"]
+    target_col=metadata["target_col"]
+
+    target_mapping = {
+    "Low": 0,
+    "Medium": 1,
+    "High": 2
+    }
+
+    df[target_col] = df[target_col].map(target_mapping)
+
     
     result = df[
     df["Social_Media_Hours"] > df["Screen_Time_Hours"]
     ]
 
-    # print("Number of rows to remove:", len(result))
 
-    # print(result[
-    #     ["Social_Media_Hours", "Screen_Time_Hours"]
-    # ])
 
     # Remove rows
     df = df.drop(result.index)
 
-    # print("Remaining rows:", len(df))
-
+    X = df.drop(columns=["Student_ID", "Mental_Health_Risk"])
+    y = df[target_col]
     X_train,X_test,y_train,y_test=train_test_split(X,y,random_state=42,test_size=0.2)
 
 
@@ -65,8 +67,8 @@ def preprocess():
         ('imputer', SimpleImputer(strategy='most_frequent')),
         ('encoder', OrdinalEncoder(
             categories=[
-                ['Low', 'Moderate', 'High'],
-                ['Poor', 'Average', 'Good']
+                ["Low", "Moderate", "High"],
+                ["Poor", "Average", "Good"]
             ]
         ))
     ])
@@ -77,27 +79,15 @@ def preprocess():
     ('ordinal', ordinal_pipeline, ordinal_cols)
     ])
 
+    X_train.to_csv("/opt/airflow/data/X_train.csv",index=False)
+    X_test.to_csv("/opt/airflow/data/X_test.csv",index=False)
+    y_train.to_csv("/opt/airflow/data/y_train.csv",index=False)
+    y_test.to_csv("/opt/airflow/data/y_test.csv",index=False)
 
-    model_SVC = Pipeline([
-    ('preprocessor', preprocessor),
-    ('classifier', SVC())
-    ])
+   
 
-    model_RF = Pipeline([
-    ('preprocessor', preprocessor),
-    ('classifier', RandomForestClassifier(
-        n_estimators=100,
-        random_state=42
-    ))
-    ])
-    model_GB = Pipeline([
-    ('preprocessor', preprocessor),
-    ('classifier', GradientBoostingClassifier(
-        n_estimators=100,
-        learning_rate=0.1,
-        max_depth=3,
-        random_state=42
-    ))
-    ])
+    joblib.dump(
+        preprocessor,
+        "/opt/airflow/data/processed/preprocessor.joblib"
+    )
 
-    return X_train,X_test,y_train,y_test,model_SVC,model_RF,model_GB

@@ -1,28 +1,50 @@
 from sklearn.svm import SVC
 from src import preprocess
+from sklearn.pipeline import Pipeline
+from src import preprocess
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+import pandas as pd
+import joblib
 
 
 
 
-def Modelisation():
+def modelisation():
 
-    X_train, X_test, y_train, y_test, model_SVC, model_RF, model_GB = preprocess.preprocess()
+    preprocessor=joblib.load("/opt/airflow/data/processed/preprocessor.joblib")
 
-    models = {
-        "SVC": model_SVC,
-        "Random Forest": model_RF,
-        "Gradient Boosting": model_GB
-    }
+    model_SVC = Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', SVC(probability=True))
+    ])
 
-    trained_models = {}
+    model_RF = Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', RandomForestClassifier(
+            n_estimators=100,
+            random_state=42
+        ))
+    ])
 
-    for name, model in models.items():
+    model_GB = Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', GradientBoostingClassifier(
+            n_estimators=100,
+            random_state=42
+        ))
+    ])
 
-        # Training
-        model.fit(X_train, y_train)
-
-        trained_models[name] = model
-
-        print(f"{name} trained successfully")
-
-    return X_train, X_test, y_train, y_test, trained_models
+    joblib.dump(
+            model_SVC,
+            "/opt/airflow/models/modelisation/SVC.joblib"
+    )
+    joblib.dump(
+                model_RF,
+                "/opt/airflow/models/modelisation/Random_Forest.joblib"
+    )
+    joblib.dump(
+                model_GB,
+                "/opt/airflow/models/modelisation/Gradient_Boosting.joblib"
+    )
