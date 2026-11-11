@@ -154,7 +154,7 @@ def evaluation():
  
        # 9. Save best model and results
 
-    output_dir = "/opt/airflow/Models/Best"
+    output_dir = "/opt/airflow/models/Best"
 
     os.makedirs(output_dir, exist_ok=True)
 
