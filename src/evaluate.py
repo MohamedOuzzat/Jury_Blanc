@@ -38,6 +38,8 @@ def evaluation():
 
     model_gb = joblib.load("/opt/airflow/models/modelisation/Gradient_Boosting.joblib")
 
+    model_lr = joblib.load("/opt/airflow/models/modelisation/Logistic_Regression.joblib")
+
     # 3. Define models and hyperparameters
     models = {
         "SVC": {
@@ -71,7 +73,15 @@ def evaluation():
                 "classifier__learning_rate": [0.05, 0.1],
                 "classifier__max_depth": [2, 3]
             }
+        },
+        "Logistic Regression": {
+        "model": model_lr,
+        "params": {
+            "classifier__C": [0.01, 0.1, 1, 10, 100],
+            "classifier__solver": ["lbfgs", "liblinear"],
+            "classifier__class_weight": [None, "balanced"]
         }
+    },
     }
 
     # 4. Cross Validation configuration

@@ -7,6 +7,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 import pandas as pd
 import joblib
+from sklearn.linear_model import LogisticRegression
+
 
 
 
@@ -36,6 +38,15 @@ def modelisation():
         ))
     ])
 
+    model_LR=Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', LogisticRegression(
+            max_iter=1000,
+            random_state=42
+        ))
+
+    ])
+
     joblib.dump(
             model_SVC,
             "/opt/airflow/models/modelisation/SVC.joblib"
@@ -47,4 +58,9 @@ def modelisation():
     joblib.dump(
                 model_GB,
                 "/opt/airflow/models/modelisation/Gradient_Boosting.joblib"
+    )
+
+    joblib.dump(
+                    model_LR,
+                    "/opt/airflow/models/modelisation/Logistic_Regression.joblib"
     )
