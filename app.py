@@ -4,7 +4,6 @@ import json
 import joblib
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.metrics import (
@@ -13,8 +12,13 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     confusion_matrix,
-    classification_report
+    classification_report,
+    ConfusionMatrixDisplay,
+    RocCurveDisplay
 )
+
+from sklearn.preprocessing import label_binarize
+
 
 # ==========================================
 # 1. CONFIGURATION
@@ -50,27 +54,31 @@ LABELS = {
     2: "High"
 }
 
+CLASS_IDS = [0, 1, 2]
+CLASS_NAMES = ["Low", "Medium", "High"]
+
+
 # ==========================================
 # 2. LOAD MODEL AND DATA
 # ==========================================
 
 @st.cache_resource
-def load_model():
-    return joblib.load(MODEL_PATH)
+def load_model(path):
+    return joblib.load(path)
 
 
 @st.cache_data
-def load_test_data():
-    X_test = pd.read_csv(X_TEST_PATH)
-    y_test = pd.read_csv(Y_TEST_PATH).squeeze("columns")
+def load_test_data(x_path, y_path):
+    X_test = pd.read_csv(x_path)
+    y_test = pd.read_csv(y_path).squeeze("columns")
 
     return X_test, y_test
 
 
 @st.cache_data
-def load_model_info():
-    if os.path.exists(JSON_PATH):
-        with open(JSON_PATH, "r") as file:
+def load_model_info(path):
+    if os.path.exists(path):
+        with open(path, "r") as file:
             return json.load(file)
 
     return {}
@@ -81,7 +89,6 @@ def load_model_info():
 # ==========================================
 
 st.title("🧠 Student Mental Health Prediction")
-st.caption("Machine Learning Dashboard | SVC Model")
 
 required_files = [
     MODEL_PATH,
@@ -103,9 +110,14 @@ if missing_files:
     st.stop()
 
 try:
-    model = load_model()
-    X_test, y_test = load_test_data()
-    model_info = load_model_info()
+    model = load_model(MODEL_PATH)
+
+    X_test, y_test = load_test_data(
+        X_TEST_PATH,
+        Y_TEST_PATH
+    )
+
+    model_info = load_model_info(JSON_PATH)
 
 except Exception as e:
     st.error(f"Loading error: {e}")
@@ -130,10 +142,12 @@ st.sidebar.divider()
 
 st.sidebar.subheader("Model Information")
 
-st.sidebar.write(
-    "Best Model:",
-    model_info.get("best_model", "SVC")
+best_model_name = model_info.get(
+    "best_model",
+    "Best Model"
 )
+
+st.sidebar.write("Best Model:", best_model_name)
 
 st.sidebar.write(
     "CV F1 Macro:",
@@ -149,23 +163,34 @@ if page == "Model Performance":
 
     st.header("📊 Model Performance")
 
+    # Predictions
     y_pred = model.predict(X_test)
 
+    # Metrics
     accuracy = accuracy_score(y_test, y_pred)
 
     precision = precision_score(
-        y_test, y_pred, average="macro", zero_division=0
+        y_test,
+        y_pred,
+        average="macro",
+        zero_division=0
     )
 
     recall = recall_score(
-        y_test, y_pred, average="macro", zero_division=0
+        y_test,
+        y_pred,
+        average="macro",
+        zero_division=0
     )
 
     f1 = f1_score(
-        y_test, y_pred, average="macro", zero_division=0
+        y_test,
+        y_pred,
+        average="macro",
+        zero_division=0
     )
 
-    # Metrics
+    # Display metrics
     col1, col2, col3, col4 = st.columns(4)
 
     col1.metric("Accuracy", f"{accuracy:.2%}")
@@ -175,39 +200,49 @@ if page == "Model Performance":
 
     st.divider()
 
+    # Airflow comparison
+    st.subheader("Airflow vs Streamlit")
+
+    comparison_df = pd.DataFrame({
+        "Metric": ["Accuracy", "F1 Macro"],
+        "Airflow": [
+            model_info.get("test_accuracy", 0),
+            model_info.get("test_f1_macro", 0)
+        ],
+        "Streamlit": [
+            accuracy,
+            f1
+        ]
+    })
+
+    st.dataframe(
+        comparison_df.style.format({
+            "Airflow": "{:.2%}",
+            "Streamlit": "{:.2%}"
+        }),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.divider()
+
     # Confusion Matrix
     st.subheader("Confusion Matrix")
 
-    cm = confusion_matrix(
-        y_test,
-        y_pred,
-        labels=[0, 1, 2]
-    )
-
     fig, ax = plt.subplots(figsize=(7, 5))
 
-    image = ax.imshow(cm, cmap="Blues")
+    ConfusionMatrixDisplay.from_predictions(
+        y_test,
+        y_pred,
+        labels=CLASS_IDS,
+        display_labels=CLASS_NAMES,
+        cmap="Blues",
+        ax=ax,
+        colorbar=False
+    )
 
-    ax.set_xticks([0, 1, 2])
-    ax.set_yticks([0, 1, 2])
+    ax.set_title("Confusion Matrix - " + best_model_name)
 
-    ax.set_xticklabels(["Low", "Medium", "High"])
-    ax.set_yticklabels(["Low", "Medium", "High"])
-
-    ax.set_xlabel("Predicted Label")
-    ax.set_ylabel("Actual Label")
-    ax.set_title("Confusion Matrix")
-
-    for i in range(3):
-        for j in range(3):
-            ax.text(
-                j, i, cm[i, j],
-                ha="center",
-                va="center",
-                color="black"
-            )
-
-    fig.colorbar(image, ax=ax)
     st.pyplot(fig)
     plt.close(fig)
 
@@ -219,35 +254,80 @@ if page == "Model Performance":
     report = classification_report(
         y_test,
         y_pred,
-        labels=[0, 1, 2],
-        target_names=["Low", "Medium", "High"],
+        labels=CLASS_IDS,
+        target_names=CLASS_NAMES,
         output_dict=True,
         zero_division=0
     )
 
     report_df = pd.DataFrame(report).transpose()
 
+    report_df["support"] = report_df["support"].astype(int)
+
     st.dataframe(
         report_df.style.format({
             "precision": "{:.2%}",
             "recall": "{:.2%}",
-            "f1-score": "{:.2%}"
+            "f1-score": "{:.2%}",
+            "support": "{:.0f}"
         }),
         use_container_width=True
     )
 
-    # Performance by class
+    st.divider()
+
+    # Performance by Class
     st.subheader("Performance by Class")
 
     class_df = report_df.loc[
-        ["Low", "Medium", "High"],
+        CLASS_NAMES,
         ["precision", "recall", "f1-score"]
     ]
 
     st.bar_chart(class_df)
 
+    st.divider()
+
+    # ROC Curve
+    st.subheader("ROC Curve")
+
+    if hasattr(model, "predict_proba"):
+
+        y_proba = model.predict_proba(X_test)
+
+        y_test_bin = label_binarize(
+            y_test,
+            classes=model.classes_
+        )
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        for i, class_label in enumerate(model.classes_):
+
+            RocCurveDisplay.from_predictions(
+                y_test_bin[:, i],
+                y_proba[:, i],
+                name=LABELS.get(int(class_label), str(class_label)),
+                ax=ax
+            )
+
+        ax.plot(
+            [0, 1],
+            [0, 1],
+            "k--",
+            label="Random Classifier"
+        )
+
+        ax.set_title("ROC Curve - " + best_model_name)
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+    else:
+        st.info("ROC Curve requires a model supporting predict_proba().")
+
     st.caption(
-        "All metrics are calculated using the saved test dataset."
+        "All performance metrics are calculated using the saved test dataset."
     )
 
 
@@ -274,13 +354,12 @@ elif page == "Test New Data":
         try:
             new_data = pd.read_csv(uploaded_file)
 
-            # Remove target if included in uploaded file
+            # Remove target if included
             new_data = new_data.drop(
                 columns=["Mental_Health_Risk"],
                 errors="ignore"
             )
 
-            # Expected features
             expected_columns = list(X_test.columns)
 
             missing_columns = [
@@ -304,11 +383,15 @@ elif page == "Test New Data":
                     f"Extra columns will be ignored: {extra_columns}"
                 )
 
-            # Keep only required columns in correct order
+            # Keep correct features and order
             new_data = new_data[expected_columns]
 
             st.subheader("Uploaded Data")
-            st.dataframe(new_data, use_container_width=True)
+
+            st.dataframe(
+                new_data,
+                use_container_width=True
+            )
 
             if st.button("Predict Mental Health Risk"):
 
@@ -335,16 +418,19 @@ elif page == "Test New Data":
                     results["Predicted_Risk"]
                     .value_counts()
                     .reindex(
-                        ["Low", "Medium", "High"],
+                        CLASS_NAMES,
                         fill_value=0
                     )
                 )
 
                 st.bar_chart(distribution)
 
+                # Download results
                 st.download_button(
                     "Download Predictions CSV",
-                    data=results.to_csv(index=False).encode("utf-8"),
+                    data=results.to_csv(
+                        index=False
+                    ).encode("utf-8"),
                     file_name="mental_health_predictions.csv",
                     mime="text/csv"
                 )

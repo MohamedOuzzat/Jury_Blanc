@@ -99,9 +99,6 @@ def evaluation():
 
         print(f"\n{name} ")
 
-        # Verify pipeline steps
-        # print("Pipeline steps:", config["model"].named_steps.keys())
-
         grid_search = GridSearchCV(
             estimator=config["model"],
             param_grid=config["params"],
@@ -159,10 +156,8 @@ def evaluation():
 
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred))
-
-    # 9. Save best model and results
  
-       # 9. Save best model and results
+   # 9. Save best model and results
 
     output_dir = "/opt/airflow/models/Best"
 
